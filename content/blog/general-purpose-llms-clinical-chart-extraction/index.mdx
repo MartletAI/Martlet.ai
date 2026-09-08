@@ -1,0 +1,117 @@
+---
+title: 'What general-purpose LLMs miss when reading a clinical chart'
+date: '2026-09-08'
+description: 'General-purpose LLMs pass medical boards yet miss HCCs in real charts. Five failure modes in clinical extraction, ranked by operational impact.'
+metaTitle: 'Why general-purpose LLMs fail at clinical chart extraction'
+thumbnail: /assets/blog/general-purpose-llms-clinical-chart-extraction/cover.jpg
+tag: Insights
+authors:
+- Hasham Ul Haq
+definedTerm:
+  name: Clinical Chart Extraction Failure Modes
+  description: The five structural gaps that cause general-purpose LLMs to underperform on real clinical text despite strong medical exam performance — negation handling, medical abbreviation disambiguation, temporal reasoning, section-aware reading, and cross-document reasoning.
+---
+
+![Taxonomy diagram showing the five structural failure modes general-purpose language models exhibit when reading clinical text: negation handling, abbreviation ambiguity, temporal reasoning, section-aware reading, and cross-chart reasoning](/assets/blog/general-purpose-llms-clinical-chart-extraction/general-purpose-llms-clinical-chart-extraction-infographic.jpg)
+
+A frontier general-purpose large language model can pass the USMLE and answer medical board exam questions at near-human accuracy ([Nature Scientific Reports, 2025](https://www.nature.com/articles/s41598-025-31010-4)). The same model, given a real clinical chart and asked to extract the diagnoses supported by the documentation, systematically misses patterns a healthcare-specific model trained on clinical text catches reliably.
+
+A general LLM is the wrong tool for clinical extraction, and the architectural reasons are knowable. The gap is operational rather than topical. The model knows what type 2 diabetes is. What it doesn't know is how to recognize the diagnosis in a clinical note where it's implied by a medication regimen, qualified by a negation cue seven words upstream, or distributed across three encounters with a specialist. Each of these is its own engineering problem, each well-studied in the peer-reviewed literature, and each one general LLMs handle worse than purpose-built medical NLP pipelines.
+
+## Why exam performance doesn't predict chart-reading performance
+
+A multiple-choice medical exam question is a tidy presentation of a clinical scenario with explicit choices. Structure: history, exam findings, lab values, clinical question, four to five options. A general LLM with broad medical knowledge maps scenario to correct answer with high accuracy.
+
+A real clinical chart looks nothing like an exam question. It's a sequence of encounter notes, problem lists, medication reconciliations, lab panels, imaging reports, and consults; each in a different format, abbreviations dense enough to look like another language. Relevant clinical information distributes across documents, with the diagnosis implied rather than stated, framed by negations and hypotheticals, qualified by temporal markers.
+
+The [Stanford HAI Holistic Evaluation of LLMs for Medical Applications](https://hai.stanford.edu/news/holistic-evaluation-of-large-language-models-for-medical-applications) documented this gap: frontier general models perform competitively on multiple-choice medical knowledge but fall behind on tasks requiring extraction and reasoning from real clinical text. The [peer-reviewed evaluation of medical LLMs across safety and effectiveness in clinical domains](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12855988/) reaches the same conclusion through a different methodology.
+
+The reasons are architectural, not incidental.
+
+## Failure mode 1: negation handling in clinical syntax
+
+Clinical text is dense with negation. "Patient denies chest pain." "No evidence of heart failure on echo." "Negative for diabetes." "Without complications." "Rule out malignancy." Each phrase contains a clinical entity that shouldn't be coded as present.
+
+The negation cue is often syntactically distant from the entity. "Patient was evaluated for heart failure, found to have preserved ejection fraction and no clinical signs of decompensation" contains a discussion of heart failure that ultimately negates the diagnosis. A general model trained on conversational text may pick up "heart failure" as a positive entity because the negation cue is clauses away.
+
+Healthcare-specific extraction pipelines have explicit negation detection: rule-based systems like NegEx and ConText, often combined with learned classifiers trained on clinical text. The peer-reviewed benchmark work in [Med-HALT](https://arxiv.org/pdf/2307.15343) and related papers documents the performance gap on negation specifically.
+
+## Failure mode 2: medical abbreviation disambiguation
+
+A general model encountering "MS" has to decide between multiple sclerosis, mitral stenosis, morphine sulfate, and other possibilities. Disambiguation requires context: patient history, medication list, note author's specialty, visit chief complaint.
+
+Clinical text uses abbreviations far more densely than general text. A primary care progress note may carry a dozen abbreviations in a paragraph, each needing disambiguation. A general model trained primarily on general text encounters these abbreviations rarely in pretraining and may default to the most common general meaning regardless of clinical context.
+
+A healthcare-specific model trained on clinical text learns the conventions: in a cardiology note discussing valvular disease, "MS" is almost certainly mitral stenosis; in a pain management note, likely morphine sulfate; in neurology discussing demyelinating disease, multiple sclerosis. The learned conventions reduce disambiguation errors substantially.
+
+## Failure mode 3: temporal reasoning
+
+Clinical text carries temporal markers that change the meaning of an entity. "Diagnosed with breast cancer at 52" in a patient now 80 is historical. "Active malignancy on recent imaging" is current. "Status post coronary artery bypass graft in 2018" is procedure history, not active surgical encounter. The same disease entity can appear in multiple temporal frames simultaneously in one chart.
+
+For risk-adjustment, the temporal frame matters. An active malignancy is a coded HCC; a personal history of cancer is a different code with different RAF implications. A general model picking up "breast cancer" without resolving the temporal frame produces coding errors that compound across the chart.
+
+Healthcare-specific pipelines include temporal classifiers, sometimes explicit, sometimes embedded in relation extraction, that resolve each entity to a temporal frame: active, historical, family history, hypothetical. The peer-reviewed clinical NLP literature has been building these for over a decade.
+
+## Failure mode 4: section-aware reading
+
+A clinical chart is structured by section: chief complaint, history of present illness, past medical history, medications, family history, social history, review of systems, exam, assessment and plan, results. Each section follows conventions about what information lives there and how it's framed.
+
+A diagnosis in the past medical history section is historical context; the same diagnosis in the assessment and plan section is being actively addressed. A finding in review of systems is patient-reported; the same finding in the exam section is provider-observed. A drug in the medications section is being prescribed; the same drug in social history may be a substance use issue.
+
+General models read the chart as undifferentiated text. Healthcare-specific extraction pipelines parse section structure and apply section-aware rules: a diagnosis in past medical history doesn't generate a current HCC; a positive finding in review of systems doesn't carry the same weight as a positive finding in the exam.
+
+## Failure mode 5: cross-document reasoning
+
+A single encounter note is one document. A patient's longitudinal record is dozens to hundreds. For risk-adjustment, relevant clinical state usually reconstructs across documents: a consult in March that diagnosed Alzheimer's, a follow-up in June continuing the diagnosis, a primary care note in November mentioning "continues on donepezil" without restating the underlying diagnosis.
+
+A general LLM given a single document has the context of that document. A healthcare-specific extraction pipeline has retrieval over the longitudinal record, coreference resolution across documents, and reconciliation logic when documents disagree about specificity or status. The cross-document layer distinguishes a chart-aware system from a note-aware one.
+
+## What the hallucination literature documents
+
+The peer-reviewed medical hallucination literature measures these failure modes systematically. The [April 2026 Algorithms paper on Hallucination Risk Scoring for Medical LLMs](https://doi.org/10.3390/a19040315), the [CHECK paper](https://arxiv.org/pdf/2506.11129), [MedHallu](https://arxiv.org/pdf/2502.14302), and [MedHallBench](https://arxiv.org/pdf/2412.18947) all document measurable hallucination rates in clinical applications of frontier general models. Rates vary by task and mitigation method, but the consistent finding is that hallucination resistance in clinical extraction requires architectural support beyond what general models provide.
+
+For risk-adjustment, hallucinated diagnoses translate directly to audit findings. A model surfacing a diagnosis without supporting chart evidence is generating audit liability at the moment of coding.
+
+## The failure modes by priority
+
+If you're evaluating a general LLM for clinical extraction and want to know which failure modes to test first, my ordering by operational impact:
+
+1. Negation handling. Highest-volume failure mode in clinical text. Test on negation-dense documents (psych notes, neurology consults).
+2. Cross-document reasoning. Hardest to test in isolation, highest leverage in production. Test on longitudinal records with diagnostic specificity distributed across notes.
+3. Temporal reasoning. Important for oncology, surgical history, and chronic condition tracking.
+4. Section-aware reading. Lower-volume failure mode but produces high-confidence errors that get past confidence floors.
+5. Abbreviation disambiguation. Persistent issue but usually caught at MEAT validation if other layers are tight.
+
+A pipeline that handles all five is what production-quality clinical extraction looks like. The Martlet AI engine, running on the John Snow Labs medical language model stack ([JSL benchmarks](https://www.johnsnowlabs.com/healthcare-llm/)), addresses each layer as a first-class component. Every surfaced HCC carries page-level evidence so audit reconstruction is unambiguous.
+
+For an AI team comparing a general LLM stack against a healthcare-specific pipeline, the failure modes above are where the comparison should run. Aggregate accuracy on a clean test set is a starting point; performance on the long tail is where production quality is decided.
+
+## FAQ
+
+### Why do general LLMs pass medical board exams but fail at chart extraction?
+
+Board exams are structured presentations with explicit choices. Chart extraction is unstructured reading of real clinical text with implicit diagnoses, negations, and temporal markers. The two skills overlap in vocabulary; they diverge in everything else.
+
+### Can retrieval-augmented generation close the gap?
+
+RAG helps with cross-document reasoning by giving the model relevant context. It doesn't address negation handling, abbreviation disambiguation, section-aware reading, or hallucination resistance in the clinical domain. Peer-reviewed evidence shows substantial residual gap even with RAG.
+
+### How big is the operational accuracy difference?
+
+At equivalent confidence floors, healthcare-specific pipelines typically show several percentage points higher precision and recall on clinical extraction. Benchmark gaps run 5 to 10 points; operational gaps compound across chart volume.
+
+### Is this gap closing as frontier general models improve?
+
+Frontier models improve; healthcare-specific models improve in parallel on a clinical-task evaluation loop. The gap has remained roughly stable across recent model generations.
+
+### Does this apply to all clinical AI, or only risk adjustment?
+
+The failure modes apply to any application requiring extraction from real clinical text: quality measurement, prior authorization, clinical research, pharmacovigilance. Risk adjustment is one of the highest-stakes applications because errors translate directly to revenue and audit liability.
+
+### How do we run our own benchmarks on these failure modes?
+
+Build held-out test sets from your own chart data, annotated for each failure mode. Sample heavily from sections of the chart where each mode is dense. Evaluate per-mode precision and recall, then compute the end-to-end MEAT-validated coding accuracy on the same charts. The per-mode numbers diagnose which layer is weakest.
+
+### What's the best published benchmark for negation handling specifically?
+
+The i2b2 negation challenges are the long-running reference. Med-HALT covers a broader set of clinical hallucination patterns including negation. For abbreviation disambiguation, the CASI dataset is the standard reference.

@@ -8,6 +8,7 @@ export const NAV_LINKS = [
 
 export const RESOURCES_LINKS = [
   { label: "Blogs", href: "/resources/blog" },
+  { label: "Benchmarks", href: "/resources/benchmarks" },
   { label: "Brochures", href: "/resources/brochures" },
   { label: "About Us", href: "/about" },
   { label: "Trust & Security", href: "/trust" },

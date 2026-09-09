@@ -1,8 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import FOOTER_CERTIFICATIONS from "@/../public/assets/logo/hipaa-compliant.svg";
-
 export function FooterCertifications() {
   return (
     <div className="max-w-[320px]">
@@ -27,13 +25,6 @@ export function FooterCertifications() {
         Regulatory-grade AI for risk adjustment — retrospective, RADV, and
         prospective, run inside your environment.
       </p>
-      <div className="inline-block rounded-2xl bg-white p-3 border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,18,0.04)] mb-5">
-        <Image
-          src={FOOTER_CERTIFICATIONS}
-          alt="HIPAA compliant and NCQA Credentials Verification Organization certified"
-          className="h-auto max-w-full"
-        />
-      </div>
       <div>
         <Link
           href="/trust"
